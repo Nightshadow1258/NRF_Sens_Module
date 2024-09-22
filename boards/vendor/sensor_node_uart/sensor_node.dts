@@ -1,0 +1,97 @@
+/*
+ * Copyright (c) 2024 Reisch Paul
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include <nordic/nrf52840_partition.dtsi>
+#include "sensor_node-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "Custom Board Sensor Node";
+	compatible = "others,sensor-node";
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+		zephyr,bt-mon-uart = &uart0;
+		zephyr,bt-c2h-uart = &uart0;
+//		zephyr,console = &cdc_acm_uart0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0: led_0 {
+			gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
+			label = "Green LED 1 8";
+		};
+};
+
+	/* These aliases are provided for compatibility with samples */
+	aliases {
+		led0 = &led0;
+		bootloader-led0 = &led0;
+		mcuboot-led0 = &led0;
+	};
+};
+
+
+&reg0 {
+	status = "disabled";
+};
+
+&reg1 {
+	// regulator-initial-mode = <NRF5X_REG_MODE_DCDC>;
+	status = "disabled";
+};
+
+
+&adc {
+	status = "okay";
+};
+
+&uicr {
+	gpio-as-nreset;
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&i2c0 {
+	compatible = "nordic,nrf-twi";
+	status = "disabled";
+	/* Arduino compatible PINs */
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-1 = <&i2c0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+// zephyr_udc0: &usbd {
+// 	compatible = "nordic,nrf-usbd";
+// 	status = "okay";
+
+// 	cdc_acm_uart: cdc_acm_uart {
+// 		compatible = "zephyr,cdc-acm-uart";
+// 	};
+// };

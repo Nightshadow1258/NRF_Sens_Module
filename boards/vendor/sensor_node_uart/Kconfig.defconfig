@@ -1,0 +1,36 @@
+# Sensor Node board configuration
+
+# Copyright (c) 2024 Reisch Paul
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_SENSOR_NODE
+
+# config BOARD_HAS_NRF5_BOOTLOADER
+# 	bool "Board has nRF5 bootloader"
+# 	default y
+# 	help
+# 	  If selected, applications are linked so that they can be loaded by Nordic
+# 	  nRF5 bootloader.
+
+config BOARD_ENABLE_DCDC
+	bool "DCDC mode"
+	select SOC_DCDC_NRF52X
+	default n
+	depends on BOARD_NRF52840DK_NRF52840
+
+
+
+config BT_CTLR
+	default BT
+
+if USB_DEVICE_STACK
+
+config UART_CONSOLE
+	default CONSOLE
+
+config USB_DEVICE_INITIALIZE_AT_BOOT
+	default y
+
+endif # USB_DEVICE_STACK
+
+endif # BOARD_SENSOR_NODE
