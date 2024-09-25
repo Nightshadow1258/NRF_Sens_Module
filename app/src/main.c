@@ -16,12 +16,16 @@
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
 
+#define SW_LSW1 DT_NODELABEL(loadsw0)
+#define SW_TEST DT_NODELABEL(loadsw1)
 /*
  * A build error on this line means your board is unsupported.
  * See the sample documentation for information on how to fix this.
  */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
+static const struct gpio_dt_spec lsw1 = GPIO_DT_SPEC_GET(SW_LSW1, gpios);
+static const struct gpio_dt_spec swtest = GPIO_DT_SPEC_GET(SW_TEST, gpios);
 
 
 
@@ -102,28 +106,63 @@ int main(void)
 {
 	int err;
 	int temp = 0;
+	int ret;
 
-	printk("Starting BTHome sensor template\n");
-
-	/* Initialize the Bluetooth Subsystem */
-	err = bt_enable(bt_ready);
-	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
-		return 0;
+	printk("Starting GPIO Testing\n");
+	if (!device_is_ready(swtest.port)) {
+		return -1;
+	}
+	ret = gpio_pin_configure_dt(&swtest, GPIO_OUTPUT_ACTIVE);
+	if (ret < 0) {
+		return -1;
 	}
 
-	for (;;) {
-		/* Simulate temperature from 0C to 25C */
-		service_data[IDX_TEMPH] = (temp * 100) >> 8;
-		service_data[IDX_TEMPL] = (temp * 100) & 0xff;
-		if (temp++ == 25) {
-			temp = 0;
-		}
-		err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
-		if (err) {
-			printk("Failed to update advertising data (err %d)\n", err);
-		}
-		k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
+	printk("Starting GPIO Testing\n");
+	if (!device_is_ready(lsw1.port)) {
+		return -1;
 	}
-	return 0;
+	ret = gpio_pin_configure_dt(&lsw1, GPIO_OUTPUT_ACTIVE);
+	if (ret < 0) {
+		return -1;
+	}
+
+	while(1) {
+		printk("Toogle Pin %i and Pin %i\n", swtest.pin, lsw1.pin);
+
+		ret = gpio_pin_toggle_dt(&swtest);
+		if (ret < 0) {
+			return;
+		}
+		ret = gpio_pin_toggle_dt(&lsw1);
+		if (ret < 0) {
+			return;
+		}
+		k_sleep(K_MSEC(5000));
+	}
+
+	// printk("Starting BTHome sensor template\n");
+
+	// /* Initialize the Bluetooth Subsystem */
+	// err = bt_enable(bt_ready);
+	// if (err) {
+	// 	printk("Bluetooth init failed (err %d)\n", err);
+	// 	return 0;
+	// }
+
+	// for (;;) {
+	// 	/* Simulate temperature from 0C to 25C */
+	// 	service_data[IDX_TEMPH] = (temp * 100) >> 8;
+	// 	service_data[IDX_TEMPL] = (temp * 100) & 0xff;
+	// 	if (temp++ == 25) {
+	// 		temp = 0;
+	// 	}
+	// 	err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
+	// 	if (err) {
+	// 		printk("Failed to update advertising data (err %d)\n", err);
+	// 	}
+	// 	k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
+		
+	
+	// }
+	// return 0;
 }

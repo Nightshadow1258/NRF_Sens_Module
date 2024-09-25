@@ -25,16 +25,31 @@
 	leds {
 		compatible = "gpio-leds";
 		led0: led_0 {
-			gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 8 (GPIO_ACTIVE_LOW)>; //GPIO_ACTIVE_LOW
 			label = "Green LED 1 8";
 		};
-};
+		loadsw0: loadsw_0 {
+			gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+			label = "GPIO to control Load Switch LDO1 of NPM1300 (GPIO2)";
+		};
+		loadsw1: loadsw_1 {
+			gpios = <&gpio0 20 (GPIO_ACTIVE_LOW)>;
+			label = "GPIO to test";
+		};
+	};
+
+	// loadsw {
+	// 	compatible = "gpios-keys";
+
+	// };
 
 	/* These aliases are provided for compatibility with samples */
 	aliases {
 		led0 = &led0;
 		bootloader-led0 = &led0;
 		mcuboot-led0 = &led0;
+		loadsw0 = &loadsw0;
+		loadsw1 = &loadsw1;
 	};
 };
 
@@ -103,6 +118,8 @@ zephyr_udc0: &usbd {
 		compatible = "zephyr,cdc-acm-uart";
 	};
 };
+
+
 
 
 
@@ -187,7 +204,7 @@ arduino_i2c: &i2c1 {
 
 
 &npm1300_ek_regulators {
-	dvs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>,
+	dvs-gpios = <&gpio0 16 GPIO_ACTIVE_LOW>,
 		    	<&gpio0 18 GPIO_ACTIVE_LOW>;
 };
 
@@ -201,12 +218,13 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_ldo1 {
-	regulator-initial-mode = <NPM1300_LDSW_MODE_LDO>;
-	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
+	regulator-boot-off;
+	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDO>;
+	//enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_HIGH>;
 };
 
 &npm1300_ek_ldo2 {
-	regulator-boot-off ;
+	regulator-boot-off;
 };
 
 &npm1300_ek_pmic {
