@@ -6,31 +6,37 @@
 
 #include <stdio.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/drivers/gpio.h>
+
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
 
+// #include "pmic.h"
+#include "sensor.h"
+#include <math.h>
+
+LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_INF);
+
 /* 1000 msec = 1 sec */
-#define SLEEP_TIME_MS   1000
+#define SLEEP_TIME_MS 1000
 
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
 
-#define SW_LSW1 DT_NODELABEL(loadsw0)
-#define SW_TEST DT_NODELABEL(loadsw1)
+#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
+#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+
 /*
  * A build error on this line means your board is unsupported.
  * See the sample documentation for information on how to fix this.
  */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
-static const struct gpio_dt_spec lsw1 = GPIO_DT_SPEC_GET(SW_LSW1, gpios);
-static const struct gpio_dt_spec swtest = GPIO_DT_SPEC_GET(SW_TEST, gpios);
 
 
 
-// Bluetooth stuff
-#define SERVICE_DATA_LEN        9
+#define SERVICE_DATA_LEN        7 //9
 #define SERVICE_UUID            0xfcd2      /* BTHome service UUID */
 #define IDX_TEMPL               4           /* Index of lo byte of temp in service data*/
 #define IDX_TEMPH               5           /* Index of hi byte of temp in service data*/
@@ -45,9 +51,9 @@ static uint8_t service_data[SERVICE_DATA_LEN] = {
 	0x02,	/* Temperature */
 	0xc4,	/* Low byte */
 	0x00,   /* High byte */
-	0x03,	/* Humidity */
-	0xbf,	/* 50.55%  low byte*/
-	0x13,   /* 50.55%  high byte*/
+	// 0x03,	/* Humidity */
+	// 0xbf,	/* 50.55%  low byte*/
+	// 0x13,   /* 50.55%  high byte*/
 };
 
 static struct bt_data ad[] = {
@@ -74,95 +80,79 @@ static void bt_ready(int err)
 }
 
 
-
-// int main(void)
-// {
-// 	int ret;
-// 	bool led_state = true;
-
-// 	if (!gpio_is_ready_dt(&led)) {
-// 		return 0;
-// 	}
-
-// 	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
-// 	if (ret < 0) {
-// 		return 0;
-// 	}
-
-// 	while (1) {
-// 		ret = gpio_pin_toggle_dt(&led);
-// 		if (ret < 0) {
-// 			return 0;
-// 		}
-
-// 		led_state = !led_state;
-// 		printf("LED state changed: %s\n", led_state ? "ON" : "OFF");
-// 		k_msleep(SLEEP_TIME_MS);
-// 	}
-// 	return 0;
-// }
-
 int main(void)
 {
 	int err;
-	int temp = 0;
-	int ret;
 
-	printk("Starting GPIO Testing\n");
-	if (!device_is_ready(swtest.port)) {
-		return -1;
-	}
-	ret = gpio_pin_configure_dt(&swtest, GPIO_OUTPUT_ACTIVE);
-	if (ret < 0) {
-		return -1;
-	}
+	// LOG_INF("Starting Lesson 2 - Exercise 1 \n");
 
-	printk("Starting GPIO Testing\n");
-	if (!device_is_ready(lsw1.port)) {
-		return -1;
-	}
-	ret = gpio_pin_configure_dt(&lsw1, GPIO_OUTPUT_ACTIVE);
-	if (ret < 0) {
-		return -1;
-	}
-
-	while(1) {
-		printk("Toogle Pin %i and Pin %i\n", swtest.pin, lsw1.pin);
-
-		ret = gpio_pin_toggle_dt(&swtest);
-		if (ret < 0) {
-			return;
-		}
-		ret = gpio_pin_toggle_dt(&lsw1);
-		if (ret < 0) {
-			return;
-		}
-		k_sleep(K_MSEC(5000));
-	}
-
-	// printk("Starting BTHome sensor template\n");
-
-	// /* Initialize the Bluetooth Subsystem */
-	// err = bt_enable(bt_ready);
+	// /* STEP 5 - Enable the Bluetooth LE stack */
+	// err = bt_enable(NULL);
 	// if (err) {
-	// 	printk("Bluetooth init failed (err %d)\n", err);
-	// 	return 0;
+	// 	LOG_ERR("Bluetooth init failed (err %d)\n", err);
+	// 	return -1;
 	// }
 
-	// for (;;) {
-	// 	/* Simulate temperature from 0C to 25C */
-	// 	service_data[IDX_TEMPH] = (temp * 100) >> 8;
-	// 	service_data[IDX_TEMPL] = (temp * 100) & 0xff;
-	// 	if (temp++ == 25) {
-	// 		temp = 0;
-	// 	}
-	// 	err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
-	// 	if (err) {
-	// 		printk("Failed to update advertising data (err %d)\n", err);
-	// 	}
-	// 	k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
-		
-	
+	// LOG_INF("Bluetooth initialized\n");
+
+	// /* STEP 6 - Start advertising */
+	// err = bt_le_adv_start(BT_LE_ADV_NCONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+	// if (err) {
+	// 	LOG_ERR("Advertising failed to start (err %d)\n", err);
+	// 	return -1;
 	// }
-	// return 0;
+
+	// LOG_INF("Advertising successfully started\n");
+	int test = 0;
+
+	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+	struct sensor_value temp, hum;
+	if (!device_is_ready(sht))
+	{
+		printf("Device %s is not ready.\n", sht->name);
+		return 0;
+	}
+
+	printk("Starting BTHome sensor template\n");
+
+	/* Initialize the Bluetooth Subsystem */
+	err = bt_enable(bt_ready);
+	if (err) {
+		printk("Bluetooth init failed (err %d)\n", err);
+		return 0;
+	}
+
+	while (true)
+	{
+
+		if (sensor_sample_fetch(sht))
+		{
+			printf("Failed to fetch sample from SHT4X device\n");
+			return 0;
+		}
+
+		sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+		sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+
+		printf("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
+			   sensor_value_to_double(&temp),
+			   sensor_value_to_double(&hum));
+
+		k_sleep(K_MSEC(2000));
+		int16_t tmp = (floor(sensor_value_to_double(&temp)*100));
+		
+		/* Simulate temperature from 0C to 25C */
+		printf("TESTING: %d \n" , tmp);
+		// see https://bthome.io/format/ for details on the format
+		service_data[IDX_TEMPH] = tmp >> 8;
+		service_data[IDX_TEMPL] = tmp << 8;
+		if (test++ == 25) {
+			test = 0;
+		}
+		err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
+		if (err) {
+			printk("Failed to update advertising data (err %d)\n", err);
+		}
+		k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
+	}
 }

@@ -6,12 +6,12 @@
  &pinctrl {
 	uart0_default: uart0_default {
 		group1 {
-			psels = <NRF_PSEL(UART_TX, 0, 6)>;
-//				<NRF_PSEL(UART_RTS, 0, 5)>;
+			psels = <NRF_PSEL(UART_TX, 0, 6)>,
+					<NRF_PSEL(UART_RTS, 0, 5)>;
 		};
 		group2 {
-			psels = <NRF_PSEL(UART_RX, 0, 8)>;
-			//	<NRF_PSEL(UART_CTS, 0, 7)>;
+			psels = <NRF_PSEL(UART_RX, 0, 8)>,
+				<NRF_PSEL(UART_CTS, 0, 7)>;
 			bias-pull-up;
 		};
 	};
@@ -48,6 +48,7 @@
 		group1 {
 			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
 				<NRF_PSEL(TWIM_SCL, 0, 27)>;
+			bias-pull-up;
 		};
 	};
 
@@ -56,6 +57,7 @@
 			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
 				<NRF_PSEL(TWIM_SCL, 0, 27)>;
 			low-power-enable;
+			bias-pull-up;
 		};
 	};
 
