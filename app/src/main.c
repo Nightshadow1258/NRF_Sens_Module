@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// INCLUDES
+
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -16,7 +18,27 @@
 #include "sensor.h"
 #include <math.h>
 
-LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_INF);
+
+// ADC Stuff
+#include <zephyr/drivers/adc.h>
+
+#if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
+	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
+#error "No suitable devicetree overlay specified"
+#endif
+
+#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
+	ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
+
+/* Data of ADC io-channels specified in devicetree. */
+static const struct adc_dt_spec adc_channels[] = {
+	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
+			     DT_SPEC_AND_COMMA)
+};
+
+
+//LOG_MODULE_DECLARE(SensorNode);
+LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_DBG);
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS 1000
@@ -34,12 +56,15 @@ LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_INF);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 
-
-
-#define SERVICE_DATA_LEN        7 //9
+#define SERVICE_DATA_LEN        11 //13
 #define SERVICE_UUID            0xfcd2      /* BTHome service UUID */
-#define IDX_TEMPL               4           /* Index of lo byte of temp in service data*/
-#define IDX_TEMPH               5           /* Index of hi byte of temp in service data*/
+#define IDX_BAT					4			/* Index of byte of Bat in service data*/
+#define IDX_TEMPL               6           /* Index of lo byte of temp in service data*/
+#define IDX_TEMPH               7           /* Index of hi byte of temp in service data*/
+#define IDX_HUML               	9           /* Index of lo byte of temp in service data*/
+#define IDX_HUMH               	10         	/* Index of hi byte of temp in service data*/
+#define IDX_STATE              	12         	/* Index of byte of count in service data*/
+
 
 #define ADV_PARAM BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_IDENTITY, \
 				  BT_GAP_ADV_SLOW_INT_MIN, \
@@ -48,12 +73,16 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 static uint8_t service_data[SERVICE_DATA_LEN] = {
 	BT_UUID_16_ENCODE(SERVICE_UUID),
 	0x40,
+	0x01,	/* Battery */
+	0x61,	/* in percent */
 	0x02,	/* Temperature */
-	0xc4,	/* Low byte */
-	0x00,   /* High byte */
-	// 0x03,	/* Humidity */
-	// 0xbf,	/* 50.55%  low byte*/
-	// 0x13,   /* 50.55%  high byte*/
+	0x98,	/* Low byte */
+	0x08,   /* High byte */
+	0x03,	/* Humidity */
+	0xbf,	/* 50.55%  low byte*/
+	0x13,   /* 50.55%  high byte*/
+	// 0x09,	/* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
+	// 0x00,	/* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
 };
 
 static struct bt_data ad[] = {
@@ -65,7 +94,7 @@ static struct bt_data ad[] = {
 static void bt_ready(int err)
 {
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		LOG_DBG("Bluetooth init failed (err %d)\n", err);
 		return;
 	}
 
@@ -74,7 +103,7 @@ static void bt_ready(int err)
 	/* Start advertising */
 	err = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {
-		printk("Advertising failed to start (err %d)\n", err);
+		LOG_DBG("Advertising failed to start (err %d)\n", err);
 		return;
 	}
 }
@@ -103,28 +132,57 @@ int main(void)
 	// }
 
 	// LOG_INF("Advertising successfully started\n");
-	int test = 0;
+	LOG_INF("Starting Initialization of all Interfaces\n");
 
+	// BLE INIT and Setup for BTHome
 	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
 	struct sensor_value temp, hum;
 	if (!device_is_ready(sht))
 	{
-		printf("Device %s is not ready.\n", sht->name);
+		LOG_DBG("Device %s is not ready.\n", sht->name);
 		return 0;
 	}
 
-	printk("Starting BTHome sensor template\n");
 
 	/* Initialize the Bluetooth Subsystem */
 	err = bt_enable(bt_ready);
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		LOG_DBG("Bluetooth init failed (err %d)\n", err);
 		return 0;
 	}
+
+	// ADC INIT and Setup
+	uint16_t vbat_raw_lsb;
+	uint32_t count = 0;
+	uint16_t buf;
+	struct adc_sequence sequence = {
+		.buffer = &buf,
+		/* buffer size in bytes, not number of samples */
+		.buffer_size = sizeof(buf),
+	};
+
+	/* Configure channels individually prior to sampling. */
+	for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
+		if (!adc_is_ready_dt(&adc_channels[i])) {
+			LOG_DBG("ADC controller device %s not ready\n", adc_channels[i].dev->name);
+			return 0;
+		}
+
+		err = adc_channel_setup_dt(&adc_channels[i]);
+		if (err < 0) {
+			LOG_DBG("Could not setup channel #%d (%d)\n", i, err);
+			return 0;
+		}
+	}
+
+	LOG_INF("Initialization of all Interfaces DONE!\n");
+	LOG_INF("Entering Main Loop\n");
 
 	while (true)
 	{
 
+		
+		// Reading SHT4 Sensor - Temp and Humidity
 		if (sensor_sample_fetch(sht))
 		{
 			printf("Failed to fetch sample from SHT4X device\n");
@@ -138,21 +196,64 @@ int main(void)
 			   sensor_value_to_double(&temp),
 			   sensor_value_to_double(&hum));
 
-		k_sleep(K_MSEC(2000));
-		int16_t tmp = (floor(sensor_value_to_double(&temp)*100));
 		
-		/* Simulate temperature from 0C to 25C */
-		printf("TESTING: %d \n" , tmp);
-		// see https://bthome.io/format/ for details on the format
-		service_data[IDX_TEMPH] = tmp >> 8;
-		service_data[IDX_TEMPL] = tmp << 8;
-		if (test++ == 25) {
-			test = 0;
+		//
+		LOG_DBG("ADC reading[%u]:\n", count++);
+		for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
+			int32_t val_mv;
+
+			printk("- %s, channel %d: ",
+			       adc_channels[i].dev->name,
+			       adc_channels[i].channel_id);
+
+			(void)adc_sequence_init_dt(&adc_channels[i], &sequence);
+
+			err = adc_read_dt(&adc_channels[i], &sequence);
+			if (err < 0) {
+				printk("Could not read (%d)\n", err);
+				continue;
+			}
+
+			/*
+			 * If using differential mode, the 16 bit value
+			 * in the ADC sample buffer should be a signed 2's
+			 * complement value.
+			 */
+			if (adc_channels[i].channel_cfg.differential) {
+				val_mv = (int32_t)((int16_t)buf);
+			} else {
+				val_mv = (int32_t)buf;
+			}
+			vbat_raw_lsb = (uint16_t) val_mv/4095 * 3.3 * 4 / 3;
+			printk("Battery Voltage %d\n", vbat_raw_lsb);
+
 		}
+
+
+		// converting Measurements to BTHome protocol
+		int16_t ble_temp = (floor(sensor_value_to_double(&temp)*100));
+		uint16_t ble_hum = (floor(sensor_value_to_double(&hum)*100));
+
+		
+		// see https://bthome.io/format/ for details on the format
+		// https://www.reddit.com/r/microcontrollers/comments/1342j4u/splitting_16bit_int_to_8bit/
+		service_data[IDX_TEMPH] = (ble_temp & 0xff00) >> 8;
+		service_data[IDX_TEMPL] = ble_temp & 0xff;
+		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
+		service_data[IDX_HUML] =  ble_hum & 0xff;	
+		service_data[IDX_BAT] = 80; // Needs to be changed -> ADC Measurement of Voltage from battery needed here
+		//service_data[IDX_STATE] = 1; // Needs to be changed -> to a GPIO reading from the Door Sensor
+		
+		printk("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
+		printk("HUM: transformed %x, Shifted: %x,%x\n", ble_hum, service_data[IDX_HUMH], service_data[IDX_HUML]);
+
+		// set data via ble and BTHome
 		err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
 		if (err) {
 			printk("Failed to update advertising data (err %d)\n", err);
 		}
-		k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
+		printk("Updated advertising data \n");
+		k_sleep(K_MSEC(1000*60*15));
+
 	}
 }
