@@ -3,7 +3,7 @@
 # Copyright (c) 2024 Reisch Paul
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_SENSOR_NODE
+if BOARD_SENSOR_MODULE
 
 # config BOARD_HAS_NRF5_BOOTLOADER
 # 	bool "Board has nRF5 bootloader"
@@ -18,8 +18,6 @@ config BOARD_ENABLE_DCDC
 	default n
 	depends on BOARD_NRF52840DK_NRF52840
 
-
-
 config BT_CTLR
 	default BT
 
@@ -33,4 +31,4 @@ config USB_DEVICE_INITIALIZE_AT_BOOT
 
 endif # USB_DEVICE_STACK
 
-endif # BOARD_SENSOR_NODE
+endif # BOARD_SENSOR_MODULE

@@ -5,11 +5,11 @@
 #include <zephyr/drivers/mfd/npm1300.h>
 
 
-#define SW_LSW1 DT_NODELABEL(loadsw0)
-#define SW_TEST DT_NODELABEL(loadsw1)
+#define SW_LSW1 DT_NODELABEL(loadsw1)
+//#define SW_TEST DT_NODELABEL(loadsw2)
 
 static const struct gpio_dt_spec lsw1 = GPIO_DT_SPEC_GET(SW_LSW1, gpios);
-static const struct gpio_dt_spec swtest = GPIO_DT_SPEC_GET(SW_TEST, gpios);
+//static const struct gpio_dt_spec swtest = GPIO_DT_SPEC_GET(SW_TEST, gpios);
 
 // PMIC stuff
 static const struct device *regulators = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_regulators));

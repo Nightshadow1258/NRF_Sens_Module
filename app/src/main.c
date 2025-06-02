@@ -14,10 +14,9 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
 
-// #include "pmic.h"
-#include "sensor.h"
+#include "pmic.h"
+//#include "sensor.h"
 #include <math.h>
-
 
 // ADC Stuff
 #include <zephyr/drivers/adc.h>
@@ -43,6 +42,7 @@ LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_DBG);
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS 1000
 
+
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
 
@@ -55,15 +55,14 @@ LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_DBG);
  */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
-
-#define SERVICE_DATA_LEN        11 //13
+// BTHOME:
+#define SERVICE_DATA_LEN        10
 #define SERVICE_UUID            0xfcd2      /* BTHome service UUID */
 #define IDX_BAT					4			/* Index of byte of Bat in service data*/
 #define IDX_TEMPL               6           /* Index of lo byte of temp in service data*/
 #define IDX_TEMPH               7           /* Index of hi byte of temp in service data*/
-#define IDX_HUML               	9           /* Index of lo byte of temp in service data*/
-#define IDX_HUMH               	10         	/* Index of hi byte of temp in service data*/
-#define IDX_STATE              	12         	/* Index of byte of count in service data*/
+//#define IDX_HUM               	11           /* Index of lo byte of temp in service data*/
+#define IDX_STATE              	9         	/* Index of byte of count in service data*/
 
 
 #define ADV_PARAM BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_IDENTITY, \
@@ -78,11 +77,11 @@ static uint8_t service_data[SERVICE_DATA_LEN] = {
 	0x02,	/* Temperature */
 	0x98,	/* Low byte */
 	0x08,   /* High byte */
-	0x03,	/* Humidity */
-	0xbf,	/* 50.55%  low byte*/
-	0x13,   /* 50.55%  high byte*/
-	// 0x09,	/* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
-	// 0x00,	/* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
+	0x2D,	/* windows */
+	0x00,	/* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
+	// 0x2E,	/* Humidity */
+	// 0x37,	/* HUM byte*/
+
 };
 
 static struct bt_data ad[] = {
@@ -107,6 +106,32 @@ static void bt_ready(int err)
 		return;
 	}
 }
+
+// void read_sensors(void)
+// {
+// 	struct sensor_value volt;
+// 	struct sensor_value current;
+// 	struct sensor_value temp;
+// 	struct sensor_value error;
+// 	struct sensor_value status;
+
+// 	sensor_sample_fetch(charger);
+// 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &volt);
+// 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &current);
+// 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &temp);
+// 	sensor_channel_get(charger, SENSOR_CHAN_NPM1300_CHARGER_STATUS, &status);
+// 	sensor_channel_get(charger, SENSOR_CHAN_NPM1300_CHARGER_ERROR, &error);
+
+// 	printk("V: %d.%03d ", volt.val1, volt.val2 / 1000);
+
+// 	printk("I: %s%d.%04d ", ((current.val1 < 0) || (current.val2 < 0)) ? "-" : "",
+// 	       abs(current.val1), abs(current.val2) / 100);
+
+// 	printk("T: %s%d.%02d\n", ((temp.val1 < 0) || (temp.val2 < 0)) ? "-" : "", abs(temp.val1),
+// 	       abs(temp.val2) / 10000);
+
+// 	printk("Charger Status: %d, Error: %d\n", status.val1, error.val1);
+// }
 
 
 int main(void)
@@ -135,13 +160,18 @@ int main(void)
 	LOG_INF("Starting Initialization of all Interfaces\n");
 
 	// BLE INIT and Setup for BTHome
-	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+
+	// const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
 	struct sensor_value temp, hum;
-	if (!device_is_ready(sht))
-	{
-		LOG_DBG("Device %s is not ready.\n", sht->name);
-		return 0;
-	}
+	temp.val1 = 100;
+	temp.val2 = 0;
+	hum.val1 = 110;
+	hum.val2 = 0;
+	// if (!device_is_ready(sht))
+	// {
+	// 	LOG_DBG("Device %s is not ready.\n", sht->name);
+	// 	return 0;
+	// }
 
 
 	/* Initialize the Bluetooth Subsystem */
@@ -176,21 +206,23 @@ int main(void)
 	}
 
 	LOG_INF("Initialization of all Interfaces DONE!\n");
+	k_sleep(K_MSEC(500));
 	LOG_INF("Entering Main Loop\n");
 
 	while (true)
 	{
 
 		
-		// Reading SHT4 Sensor - Temp and Humidity
-		if (sensor_sample_fetch(sht))
-		{
-			printf("Failed to fetch sample from SHT4X device\n");
-			return 0;
-		}
+		// // Reading SHT4 Sensor - Temp and Humidity
+		// if (sensor_sample_fetch(sht))
+		// {
+		// 	printf("Failed to fetch sample from SHT4X device\n");
+		// 	return 0;
+		// }
 
-		sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+		// sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+		// sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+
 
 		printf("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
 			   sensor_value_to_double(&temp),
@@ -232,20 +264,19 @@ int main(void)
 
 		// converting Measurements to BTHome protocol
 		int16_t ble_temp = (floor(sensor_value_to_double(&temp)*100));
-		uint16_t ble_hum = (floor(sensor_value_to_double(&hum)*100));
+		uint16_t ble_hum = (round(sensor_value_to_double(&hum)));
 
 		
 		// see https://bthome.io/format/ for details on the format
 		// https://www.reddit.com/r/microcontrollers/comments/1342j4u/splitting_16bit_int_to_8bit/
 		service_data[IDX_TEMPH] = (ble_temp & 0xff00) >> 8;
 		service_data[IDX_TEMPL] = ble_temp & 0xff;
-		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
-		service_data[IDX_HUML] =  ble_hum & 0xff;	
+		// service_data[IDX_HUM] = (ble_hum);
 		service_data[IDX_BAT] = 80; // Needs to be changed -> ADC Measurement of Voltage from battery needed here
-		//service_data[IDX_STATE] = 1; // Needs to be changed -> to a GPIO reading from the Door Sensor
+		service_data[IDX_STATE] = 1; // Needs to be changed -> to a GPIO reading from the Door Sensor
 		
 		printk("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
-		printk("HUM: transformed %x, Shifted: %x,%x\n", ble_hum, service_data[IDX_HUMH], service_data[IDX_HUML]);
+		//printk("HUM: transformed %x, Shifted: %x\n", ble_hum, service_data[IDX_HUM]);
 
 		// set data via ble and BTHome
 		err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
@@ -253,7 +284,11 @@ int main(void)
 			printk("Failed to update advertising data (err %d)\n", err);
 		}
 		printk("Updated advertising data \n");
-		k_sleep(K_MSEC(1000*60*15));
+		//read_sensors();
+		k_sleep(K_MSEC(1000*15));
+		//k_sleep(K_MSEC(BT_GAP_ADV_SLOW_INT_MIN));
+
+//		k_sleep(K_MSEC(1000*60*15));
 
 	}
 }
