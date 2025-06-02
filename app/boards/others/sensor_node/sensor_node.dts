@@ -153,6 +153,10 @@ arduino_i2c: &i2c1 {
 	npm1300_ek_pmic: pmic@6b {
 		compatible = "nordic,npm1300";
 		reg = <0x6b>;
+		// ship-to-active-time = <96>;
+
+		
+		// long-press-reset = "one_button";
 
 		npm1300_ek_gpio: gpio-controller {
 			compatible = "nordic,npm1300-gpio";
@@ -178,6 +182,8 @@ arduino_i2c: &i2c1 {
 			npm1300_ek_ldo1: LDO1 {
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <3300000>;
+				regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
+				regulator-boot-on;
 			};
 
 			npm1300_ek_ldo2: LDO2 {
@@ -189,8 +195,10 @@ arduino_i2c: &i2c1 {
 		npm1300_ek_charger: charger {
 			compatible = "nordic,npm1300-charger";
 			term-microvolt = <4150000>;
-			term-warm-microvolt = <4000000>;
-			current-microamp = <150000>;
+			term-warm-microvolt = <3600000>;
+			// term-current-percent = <10>;
+			current-microamp = <100000>;
+			// trickle-microvolt = <2500000>;	
 			dischg-limit-microamp = <1000000>;
 			vbus-limit-microamp = <500000>;
 			thermistor-ohms = <10000>;
@@ -235,8 +243,8 @@ arduino_i2c: &i2c1 {
 
 &npm1300_ek_ldo1 {
 	regulator-boot-off;
-	regulator-initial-mode = <NPM1300_LDSW_MODE_LDO>;
-	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_HIGH>;
+	regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
+	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
 };
 
 &npm1300_ek_ldo2 {
