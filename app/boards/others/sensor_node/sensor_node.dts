@@ -15,11 +15,11 @@
 	model = "Custom Board Sensor Node";
 	compatible = "others,sensor-node";
 	chosen {
-		zephyr,console = &usb_cdc_acm_uart;
-		zephyr,shell-uart = &usb_cdc_acm_uart;
-		zephyr,uart-mcumgr = &usb_cdc_acm_uart;
-		zephyr,bt-mon-uart = &usb_cdc_acm_uart;
-		zephyr,bt-c2h-uart = &usb_cdc_acm_uart;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+		zephyr,bt-mon-uart = &uart0;
+		zephyr,bt-c2h-uart = &uart0;
 	};
 
 	leds {
@@ -29,13 +29,13 @@
 			label = "Green LED 1 8";
 		};
 		loadsw0: loadsw_0 {
-			gpios = <&gpio0 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+			gpios = <&gpio1 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 			label = "GPIO to control Load Switch LDO1 of NPM1300 (GPIO2)";
 		};
-		loadsw1: loadsw_1 {
-			gpios = <&gpio0 20 (GPIO_ACTIVE_LOW)>;
-			label = "GPIO to test";
-		};
+		// loadsw1: loadsw_1 {
+		// 	gpios = <&gpio0 20 (GPIO_ACTIVE_LOW)>;
+		// 	label = "GPIO to test";
+		// };
 	};
 
 	zephyr,user {
@@ -52,7 +52,7 @@
 		bootloader-led0 = &led0;
 		mcuboot-led0 = &led0;
 		loadsw0 = &loadsw0;
-		loadsw1 = &loadsw1;
+		// = &loadsw1;
 	};
 };
 
@@ -183,7 +183,7 @@ arduino_i2c: &i2c1 {
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
-				regulator-boot-on;
+				//regulator-boot-on;
 			};
 
 			npm1300_ek_ldo2: LDO2 {
@@ -242,7 +242,7 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_ldo1 {
-	regulator-boot-off;
+	//regulator-boot-off;
 	regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
 	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
 };

@@ -14,8 +14,8 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
 
-// #include "pmic.h"
-#include "sensor.h"
+#include "pmic.h"
+//#include "sensor.h"
 #include <math.h>
 
 
@@ -135,13 +135,17 @@ int main(void)
 	LOG_INF("Starting Initialization of all Interfaces\n");
 
 	// BLE INIT and Setup for BTHome
-	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+	// const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
 	struct sensor_value temp, hum;
-	if (!device_is_ready(sht))
-	{
-		LOG_DBG("Device %s is not ready.\n", sht->name);
-		return 0;
-	}
+	temp.val1 = 110;
+	temp.val2 = 110;
+	hum.val1 = 110;
+	hum.val2 = 110;
+	// if (!device_is_ready(sht))
+	// {
+	// 	LOG_DBG("Device %s is not ready.\n", sht->name);
+	// 	return 0;
+	// }
 
 
 	/* Initialize the Bluetooth Subsystem */
@@ -183,21 +187,22 @@ int main(void)
 
 		
 		// Reading SHT4 Sensor - Temp and Humidity
-		if (sensor_sample_fetch(sht))
-		{
-			printf("Failed to fetch sample from SHT4X device\n");
-			return 0;
-		}
+		// if (sensor_sample_fetch(sht))
+		// {
+		// 	printf("Failed to fetch sample from SHT4X device\n");
+		// 	return 0;
+		// }
 
-		sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+		// sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+		// sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
 
-		printf("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
-			   sensor_value_to_double(&temp),
-			   sensor_value_to_double(&hum));
+		// printf("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
+		// 	   sensor_value_to_double(&temp),
+		// 	   sensor_value_to_double(&hum));
 
 		
 		//
+		read_sensors();
 		LOG_DBG("ADC reading[%u]:\n", count++);
 		for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
 			int32_t val_mv;
