@@ -3,7 +3,7 @@
 
 LOG_MODULE_REGISTER(pmic, LOG_LEVEL_DBG);
 
-void pmic_test(void)
+int pmic_test(void)
 {	
 	int ret;
 
@@ -35,7 +35,7 @@ void pmic_test(void)
 		// }
 		ret = gpio_pin_toggle_dt(&lsw1);
 		if (ret < 0) {
-			return;
+			return -1;
 		}
 		k_sleep(K_MSEC(5000));
 
@@ -55,10 +55,9 @@ void pmic_test(void)
 		//read_sensors();
 		//}
 	}
-
 }
 
-void read_sensors(void)
+void read_sensors()
 {
 	LOG_DBG("READ PMIC Sensors:\n");
 	struct sensor_value volt;
@@ -67,6 +66,7 @@ void read_sensors(void)
 	struct sensor_value error;
 	struct sensor_value status;
 	struct sensor_value vbus_present;
+	struct sensor_value dietemp;
 
 	sensor_sample_fetch(charger);
 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &volt);
@@ -78,6 +78,10 @@ void read_sensors(void)
 	sensor_attr_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM1300_CHARGER_VBUS_STATUS,
 			(enum sensor_attribute)SENSOR_ATTR_NPM1300_CHARGER_VBUS_PRESENT,
 			&vbus_present);
+	
+	npm1300_charger_channel_get(charger, 12, &dietemp);	
+	LOG_DBG("PMIC Die Temp: %d C\n", dietemp.val1);
+
 
 	LOG_DBG("V: %d.%03d ", volt.val1, volt.val2 / 1000);
 
@@ -89,4 +93,5 @@ void read_sensors(void)
 
 	LOG_DBG("Charger Status: %d, Error: %d, VBUS: %s\n", status.val1, error.val1,
 	       vbus_present.val1 ? "connected" : "disconnected");
+
 }

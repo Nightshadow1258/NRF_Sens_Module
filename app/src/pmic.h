@@ -21,4 +21,7 @@ static const struct device *leds = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_leds));
 static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_pmic));
 
 
-void read_sensors(void);
+
+int pmic_test(void);
+
+void read_sensors();

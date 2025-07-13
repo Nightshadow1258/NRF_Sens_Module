@@ -258,6 +258,8 @@ int main(void)
 			printk("Failed to update advertising data (err %d)\n", err);
 		}
 		printk("Updated advertising data \n");
+
+
 		k_sleep(K_MSEC(1000*60*15));
 
 	}

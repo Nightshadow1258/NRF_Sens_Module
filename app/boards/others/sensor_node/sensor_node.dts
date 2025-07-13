@@ -140,7 +140,6 @@ zephyr_udc0: &usbd {
 
 
 // NPM1300
-
 arduino_i2c: &i2c1 {
 	compatible = "nordic,nrf-twi";
 	status = "okay";
@@ -182,8 +181,6 @@ arduino_i2c: &i2c1 {
 			npm1300_ek_ldo1: LDO1 {
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
-				//regulator-boot-on;
 			};
 
 			npm1300_ek_ldo2: LDO2 {
@@ -233,6 +230,7 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_buck1 {
+	regulator-always-on;
 	regulator-init-microvolt = <1800000>;
 	// regulator-boot-off;
 };
@@ -242,9 +240,12 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_ldo1 {
-	//regulator-boot-off;
-	regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
-	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
+	regulator-always-on;
+	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
+	//nordic,anomaly38-disable-workaround;
+	regulator-init-microvolt = <1800000>; // 1.8V
+	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
+	//enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
 };
 
 &npm1300_ek_ldo2 {
@@ -258,14 +259,14 @@ arduino_i2c: &i2c1 {
 
 
 
-&i2c0 {
-	status = "okay";
-	clock-frequency = <I2C_BITRATE_FAST>;
-	sht4x@44 {
-		status = "okay";
-		compatible = "sensirion,sht4x";
-		reg = <0x44>;
-		repeatability = <2>;
-		//zephyr,deferred-init;
-	};
-};
+// &i2c0 {
+// 	status = "okay";
+// 	clock-frequency = <I2C_BITRATE_FAST>;
+// 	sht4x@44 {
+// 		status = "okay";
+// 		compatible = "sensirion,sht4x";
+// 		reg = <0x44>;
+// 		repeatability = <2>;
+// 		//zephyr,deferred-init;
+// 	};
+// };
