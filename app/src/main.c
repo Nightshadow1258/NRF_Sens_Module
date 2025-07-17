@@ -18,6 +18,8 @@
 //#include "sensor.h"
 #include <math.h>
 
+// const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+
 
 // ADC Stuff
 #include <zephyr/drivers/adc.h>
@@ -113,34 +115,15 @@ int main(void)
 {
 	int err;
 
-	// LOG_INF("Starting Lesson 2 - Exercise 1 \n");
-
-	// /* STEP 5 - Enable the Bluetooth LE stack */
-	// err = bt_enable(NULL);
-	// if (err) {
-	// 	LOG_ERR("Bluetooth init failed (err %d)\n", err);
-	// 	return -1;
-	// }
-
-	// LOG_INF("Bluetooth initialized\n");
-
-	// /* STEP 6 - Start advertising */
-	// err = bt_le_adv_start(BT_LE_ADV_NCONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
-	// if (err) {
-	// 	LOG_ERR("Advertising failed to start (err %d)\n", err);
-	// 	return -1;
-	// }
-
-	// LOG_INF("Advertising successfully started\n");
 	LOG_INF("Starting Initialization of all Interfaces\n");
 
-	// BLE INIT and Setup for BTHome
-	// const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
 	struct sensor_value temp, hum;
 	temp.val1 = 110;
 	temp.val2 = 110;
 	hum.val1 = 110;
 	hum.val2 = 110;
+
+	// SHT4X Sensor Init
 	// if (!device_is_ready(sht))
 	// {
 	// 	LOG_DBG("Device %s is not ready.\n", sht->name);

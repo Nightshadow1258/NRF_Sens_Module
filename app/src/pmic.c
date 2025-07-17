@@ -82,7 +82,6 @@ void read_sensors()
 	npm1300_charger_channel_get(charger, 12, &dietemp);	
 	LOG_DBG("PMIC Die Temp: %d C\n", dietemp.val1);
 
-
 	LOG_DBG("V: %d.%03d ", volt.val1, volt.val2 / 1000);
 
 	LOG_DBG("I: %s%d.%04d ", ((current.val1 < 0) || (current.val2 < 0)) ? "-" : "",
