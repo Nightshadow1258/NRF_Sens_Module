@@ -1,4 +1,0 @@
-h
-loadbin /home/paul/zephyrproject/zephyr/build/zephyr/zephyr.hex,0x0
-r
-q
