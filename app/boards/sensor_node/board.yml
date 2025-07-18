@@ -1,5 +1,0 @@
-board:
-  name: sensor_node
-  vendor: others
-  socs:
-  - name: nrf52840

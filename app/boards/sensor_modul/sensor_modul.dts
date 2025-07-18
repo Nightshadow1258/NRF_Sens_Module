@@ -7,13 +7,13 @@
 /dts-v1/;
 #include <nordic/nrf52840_qiaa.dtsi>
 #include <nordic/nrf52840_partition.dtsi>
-#include "sensor_node-pinctrl.dtsi"
+#include "sensor_modul-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <dt-bindings/regulator/npm1300.h>
 
 / {
-	model = "Custom Board Sensor Node";
-	compatible = "others,sensor-node";
+	model = "Custom Board Sensor Modul";
+	compatible = "others,sensor-modul";
 	chosen {
 		zephyr,console = &uart0;
 		zephyr,shell-uart = &uart0;
@@ -114,13 +114,13 @@
 	pinctrl-names = "default", "sleep";
 };
 
-zephyr_udc0: &usbd {
-	compatible = "nordic,nrf-usbd";
-	status = "okay";
-	usb_cdc_acm_uart: cdc-acm-uart {
-		compatible = "zephyr,cdc-acm-uart";
-	};
-};
+// zephyr_udc0: &usbd {
+// 	compatible = "nordic,nrf-usbd";
+// 	status = "okay";
+// 	usb_cdc_acm_uart: cdc-acm-uart {
+// 		compatible = "zephyr,cdc-acm-uart";
+// 	};
+// };
 
 
 &adc {
@@ -221,9 +221,7 @@ arduino_i2c: &i2c1 {
 	};
 };
 
-
-
-
+ 
 &npm1300_ek_regulators {
 	dvs-gpios = <&gpio0 16 GPIO_ACTIVE_LOW>,
 		    	<&gpio0 18 GPIO_ACTIVE_LOW>;
@@ -240,12 +238,13 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_ldo1 {
-	regulator-always-on;
-	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
+	//regulator-always-on;
+	regulator-boot-on;
+	regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
 	//nordic,anomaly38-disable-workaround;
 	regulator-init-microvolt = <1800000>; // 1.8V
 	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
-	//enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
+	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
 };
 
 &npm1300_ek_ldo2 {
@@ -267,6 +266,6 @@ arduino_i2c: &i2c1 {
 // 		compatible = "sensirion,sht4x";
 // 		reg = <0x44>;
 // 		repeatability = <2>;
-// 		//zephyr,deferred-init;
+// 		zephyr,deferred-init;
 // 	};
 // };

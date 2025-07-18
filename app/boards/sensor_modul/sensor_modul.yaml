@@ -1,5 +1,5 @@
-identifier: sensor_node
-name: Sensor Node
+identifier: sensor_modul
+name: Sensor Modul
 type: mcu
 arch: arm
 ram: 256

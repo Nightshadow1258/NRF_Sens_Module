@@ -1,9 +1,9 @@
-# Sensor Node board configuration
+# Sensor Modul board configuration
 
 # Copyright (c) 2024 Reisch Paul
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_SENSOR_NODE
+if BOARD_SENSOR_MODUL
 
 # config BOARD_HAS_NRF5_BOOTLOADER
 # 	bool "Board has nRF5 bootloader"
@@ -33,4 +33,4 @@ config USB_DEVICE_INITIALIZE_AT_BOOT
 
 endif # USB_DEVICE_STACK
 
-endif # BOARD_SENSOR_NODE
+endif # BOARD_SENSOR_MODUL
