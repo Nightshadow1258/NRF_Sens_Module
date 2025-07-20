@@ -205,7 +205,7 @@ arduino_i2c: &i2c1 {
 			term-microvolt = <4150000>;
 			term-warm-microvolt = <3600000>;
 			// term-current-percent = <10>;
-			current-microamp = <100000>;
+			current-microamp = <150000>;
 			// trickle-microvolt = <2500000>;	
 			dischg-limit-microamp = <1000000>;
 			vbus-limit-microamp = <500000>;
@@ -276,3 +276,15 @@ arduino_i2c: &i2c1 {
 		repeatability = <2>;
 	};
 };
+
+
+// RTC with 32.768 kHz crystal
+// &clock {
+//     lf_clk {
+//         source = "XTAL";
+//     };
+// };
+
+// &rtc1 { // Real Time Clock for wakeup from System Off
+//     status = "okay";
+// };

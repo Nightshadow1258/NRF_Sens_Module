@@ -21,17 +21,17 @@
 // ADC Stuff
 #include <zephyr/drivers/adc.h>
 
-
-
 #include <hal/nrf_gpio.h>
 
 #include <zephyr/pm/pm.h>
 #include <zephyr/pm/device.h>
 
+#include <hal/nrf_rtc.h>
+#include <hal/nrf_ppi.h>
+#include <hal/nrf_power.h>
 
 const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
-
 
 #if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
 	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
@@ -54,9 +54,6 @@ LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
 
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
-
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
 /*
  * A build error on this line means your board is unsupported.
@@ -121,6 +118,26 @@ void door_sensor_init(void)
 	pm_device_wakeup_enable(door.port, true);
 }
 
+// RTC
+void setup_rtc_wakeup(void)
+{
+	NRF_RTC1->PRESCALER = 0;		// 32.768 kHz
+	NRF_RTC1->CC[0] = 32768 * 1000; // Wake after ~10 seconds
+	NRF_RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Msk;
+	NRF_RTC1->INTENSET = RTC_INTENSET_COMPARE0_Msk;
+	NRF_RTC1->TASKS_START = 1;
+}
+
+// void setup_rtc_wakeup_ppi(void) {
+//     NRF_PPI->CH[0].EEP = (uint32_t)&NRF_RTC1->EVENTS_COMPARE[0];
+//     NRF_PPI->CH[0].TEP = (uint32_t)&NRF_POWER->TASKS_CONSTLAT;  // or SYSTEMOFF wakeup task
+//     NRF_PPI->CHENSET = PPI_CHENSET_CH0_Msk;
+// }
+
+// BLE and BTHome Service Data
+#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
+#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+
 #define SERVICE_DATA_LEN 13 // 13
 #define SERVICE_UUID 0xfcd2 /* BTHome service UUID */
 #define IDX_BAT 4			/* Index of byte of Bat in service data*/
@@ -178,6 +195,9 @@ int main(void)
 
 	pm_device_action_run(uart_dev, PM_DEVICE_ACTION_RESUME);
 	pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_RESUME);
+
+	setup_rtc_wakeup(); // Configure RTC compare event
+
 	int err;
 
 	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
@@ -269,6 +289,23 @@ int main(void)
 	while (true)
 	{
 
+		uint32_t reason = NRF_POWER->RESETREAS;
+		LOG_INF("Reset reason: 0x%08x", reason);
+
+		if (reason & POWER_RESETREAS_RESETPIN_Msk)
+		{
+			LOG_INF("Reset from pin");
+		}
+		if (reason & POWER_RESETREAS_LPCOMP_Msk)
+		{
+			LOG_INF("Woke up from LPCOMP");
+		}
+		if (reason & POWER_RESETREAS_OFF_Msk)
+		{
+			LOG_INF("Wakeup caused by GPIO");
+		}
+		NRF_POWER->RESETREAS = 0xFFFFFFFF; // Clear flags
+
 		// Reading SHT4 Sensor - Temp and Humidity
 		if (sensor_sample_fetch(sht))
 		{
@@ -330,7 +367,7 @@ int main(void)
 		service_data[IDX_TEMPL] = ble_temp & 0xff;
 		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
 		service_data[IDX_HUML] = ble_hum & 0xff;
-		service_data[IDX_BAT] = 80;						  // Needs to be changed -> ADC Measurement of Voltage from battery needed here
+		service_data[IDX_BAT] = 80;			  // Needs to be changed -> ADC Measurement of Voltage from battery needed here
 		service_data[IDX_STATE] = door_state; // read the door state and update the service data
 
 		LOG_DBG("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
@@ -350,8 +387,6 @@ int main(void)
 		}
 		LOG_DBG("Updated advertising data \n");
 
-
-
 		if (door_state == 0)
 		{
 			LOG_INF("Door is CLOSED - Entering Soft Off Mode\n");
@@ -360,31 +395,28 @@ int main(void)
 		else
 		{
 			LOG_INF("Door is OPEN - Entering Soft Off Mode\n");
-			    nrf_gpio_cfg_sense_input(door.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+			nrf_gpio_cfg_sense_input(door.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 		}
-
 
 		k_sleep(K_MSEC(1000)); // needed to ensure that logging is outputted before entering power down mode
 
+
+		k_sleep(K_MSEC(10*60*1000));  // 10 minte "sleep" until proper power management is implemented
 		// suspend unused devices to save power
-		pm_device_action_run(uart_dev, PM_DEVICE_ACTION_SUSPEND);
-		pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_SUSPEND);
+		// pm_device_action_run(uart_dev, PM_DEVICE_ACTION_SUSPEND);
+		// pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_SUSPEND);
 
+		// NRF_POWER->SYSTEMOFF = 1; // Enter System Off Mode via direct register access
+		//  pm_state_force(0, &(struct pm_state_info){
+		//  					  .state = PM_STATE_SOFT_OFF,
+		//  					  .substate_id = 0,
+		//  				  }); // Enter Soft Off Mode via PM API - recommended way
 
-
-		NRF_POWER->SYSTEMOFF = 1; // Enter System Off Mode via direct register access
-		// pm_state_force(0, &(struct pm_state_info){
-		// 					  .state = PM_STATE_SOFT_OFF,
-		// 					  .substate_id = 0,
-		// 				  }); // Enter Soft Off Mode via PM API - recommended way
-
-						
-		k_sleep(K_MSEC(1000 * 60 * 5)); // 5 Minutes Sleep
+		// NRF_RTC1->EVENTS_COMPARE[0] = 0;
+		// LOG_INF("Entering idle sleep...");
+		// __WFI(); // Wait For Interrupt
 	}
 }
-
-
-
 
 // #include <zephyr/drivers/counter.h>
 
