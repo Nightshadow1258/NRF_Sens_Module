@@ -91,6 +91,7 @@
 
 &gpio0 {
 	status = "okay";
+	wakeup-source;
 };
 
 &gpio1 {
