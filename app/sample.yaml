@@ -2,7 +2,11 @@
 # the Zephyr testing tool. In this file, multiple combinations can be specified,
 # so that you can easily test all of them locally or in CI.
 sample:
-  name: Blinky Sample
+  name: SensorNode_Modul
+  description: Sensor Node with multiple sensors and BLE capabilities
+  version: 1.0.0
+  maintainer: Paul
+  license: Apache-2.0
 tests:
   sample.basic.blinky:
     tags:

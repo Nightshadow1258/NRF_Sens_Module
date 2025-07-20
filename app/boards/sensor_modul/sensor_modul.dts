@@ -38,6 +38,15 @@
 		// };
 	};
 
+	buttons {
+		compatible = "gpio-keys";
+		door0: door_0 {
+			gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+			label = "Door Button";
+			zephyr,code = <INPUT_KEY_1>;
+		};
+	};
+
 	zephyr,user {
 		io-channels = <&adc 0>;
 	};
@@ -52,6 +61,7 @@
 		bootloader-led0 = &led0;
 		mcuboot-led0 = &led0;
 		loadsw0 = &loadsw0;
+		door0 = &door0;
 		// = &loadsw1;
 	};
 };
@@ -230,7 +240,6 @@ arduino_i2c: &i2c1 {
 &npm1300_ek_buck1 {
 	regulator-always-on;
 	regulator-init-microvolt = <1800000>;
-	// regulator-boot-off;
 };
 
 &npm1300_ek_buck2 {
@@ -238,12 +247,10 @@ arduino_i2c: &i2c1 {
 };
 
 &npm1300_ek_ldo1 {
-	//regulator-always-on;
 	regulator-boot-on;
 	regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
 	//nordic,anomaly38-disable-workaround;
 	regulator-init-microvolt = <1800000>; // 1.8V
-	//regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
 	enable-gpios = <&npm1300_ek_gpio 2 GPIO_ACTIVE_LOW>;
 };
 
@@ -258,14 +265,13 @@ arduino_i2c: &i2c1 {
 
 
 
-// &i2c0 {
-// 	status = "okay";
-// 	clock-frequency = <I2C_BITRATE_FAST>;
-// 	sht4x@44 {
-// 		status = "okay";
-// 		compatible = "sensirion,sht4x";
-// 		reg = <0x44>;
-// 		repeatability = <2>;
-// 		zephyr,deferred-init;
-// 	};
-// };
+&i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>; // 400kHz
+	sht4x@44 {
+		status = "okay";
+		compatible = "sensirion,sht4x";
+		reg = <0x44>;
+		repeatability = <2>;
+	};
+};

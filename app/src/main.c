@@ -37,8 +37,8 @@ static const struct adc_dt_spec adc_channels[] = {
 };
 
 
-//LOG_MODULE_DECLARE(SensorNode);
-LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_DBG);
+//LOG_MODULE_DECLARE(Sensor_Modul);
+LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS 1000
@@ -56,7 +56,27 @@ LOG_MODULE_REGISTER(SensorNode, LOG_LEVEL_DBG);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 
-#define SERVICE_DATA_LEN        11 //13
+// Magnetic Door Sensor 
+#define DOOR_NODE DT_ALIAS(door0)
+# define DEBOUNCE_TIMEOUT_MS 50 // 50 ms debounce timeout
+
+uint64_t last_time = 0;
+static const struct gpio_dt_spec door = GPIO_DT_SPEC_GET(DOOR_NODE, gpios);
+
+void door_callback(const struct device *dev,
+	struct gpio_callback *cb, uint32_t pins)
+{
+  uint64_t now = k_uptime_get();
+  if ((now - last_time) > DEBOUNCE_TIMEOUT_MS)
+  {
+    LOG_DBG("Door Sensor State: %d\n", gpio_pin_get_dt(&door));
+  }
+  last_time = now;
+}
+
+
+
+#define SERVICE_DATA_LEN        13 //13
 #define SERVICE_UUID            0xfcd2      /* BTHome service UUID */
 #define IDX_BAT					4			/* Index of byte of Bat in service data*/
 #define IDX_TEMPL               6           /* Index of lo byte of temp in service data*/
@@ -81,8 +101,8 @@ static uint8_t service_data[SERVICE_DATA_LEN] = {
 	0x03,	/* Humidity */
 	0xbf,	/* 50.55%  low byte*/
 	0x13,   /* 50.55%  high byte*/
-	// 0x09,	/* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
-	// 0x00,	/* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
+	0x09,	/* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
+	0x00,	/* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
 };
 
 static struct bt_data ad[] = {
@@ -113,6 +133,8 @@ int main(void)
 {
 	int err;
 
+	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+
 	// LOG_INF("Starting Lesson 2 - Exercise 1 \n");
 
 	// /* STEP 5 - Enable the Bluetooth LE stack */
@@ -135,23 +157,22 @@ int main(void)
 	LOG_INF("Starting Initialization of all Interfaces\n");
 
 	// BLE INIT and Setup for BTHome
-	// const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
-	struct sensor_value temp, hum;
-	temp.val1 = 110;
-	temp.val2 = 110;
-	hum.val1 = 110;
-	hum.val2 = 110;
-	// if (!device_is_ready(sht))
-	// {
-	// 	LOG_DBG("Device %s is not ready.\n", sht->name);
-	// 	return 0;
-	// }
+	
+  	// Door button 
+	if (!device_is_ready(door.port))
+		return;
+	  // configure the button pin as input
+  	gpio_pin_configure_dt(&door, GPIO_INPUT);
+  	//gpio_pin_interrupt_configure_dt(&door, GPIO_INT_EDGE_TO_ACTIVE);
+
+	int16_t door_state = gpio_pin_get_dt(&door); // Read initial state
+	LOG_DBG("Door Sensor State: %d\n", door_state);
 
 
 	/* Initialize the Bluetooth Subsystem */
 	err = bt_enable(bt_ready);
 	if (err) {
-		LOG_DBG("Bluetooth init failed (err %d)\n", err);
+		LOG_INF("Bluetooth init failed (err %d)\n", err);
 		return 0;
 	}
 
@@ -179,6 +200,17 @@ int main(void)
 		}
 	}
 
+	struct sensor_value temp, hum;
+	temp.val1 = 110;
+	temp.val2 = 110;
+	hum.val1 = 110;
+	hum.val2 = 110;
+	if (!device_is_ready(sht))
+	{
+		LOG_DBG("Device %s is not ready.\n", sht->name);
+		return 0;
+	}
+
 	LOG_INF("Initialization of all Interfaces DONE!\n");
 	LOG_INF("Entering Main Loop\n");
 
@@ -187,18 +219,18 @@ int main(void)
 
 		
 		// Reading SHT4 Sensor - Temp and Humidity
-		// if (sensor_sample_fetch(sht))
-		// {
-		// 	printf("Failed to fetch sample from SHT4X device\n");
-		// 	return 0;
-		// }
+		if (sensor_sample_fetch(sht))
+		{
+			LOG_DBG("Failed to fetch sample from SHT4X device\n");
+			return 0;
+		}
 
-		// sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		// sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+		sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+		sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
 
-		// printf("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
-		// 	   sensor_value_to_double(&temp),
-		// 	   sensor_value_to_double(&hum));
+		LOG_DBG("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
+			   sensor_value_to_double(&temp),
+			   sensor_value_to_double(&hum));
 
 		
 		//
@@ -230,7 +262,7 @@ int main(void)
 				val_mv = (int32_t)buf;
 			}
 			vbat_raw_lsb = (uint16_t) val_mv/4095 * 3.3 * 4 / 3;
-			printk("Battery Voltage %d\n", vbat_raw_lsb);
+			LOG_DBG("Battery Voltage %d\n", vbat_raw_lsb);
 
 		}
 
@@ -247,20 +279,24 @@ int main(void)
 		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
 		service_data[IDX_HUML] =  ble_hum & 0xff;	
 		service_data[IDX_BAT] = 80; // Needs to be changed -> ADC Measurement of Voltage from battery needed here
-		//service_data[IDX_STATE] = 1; // Needs to be changed -> to a GPIO reading from the Door Sensor
+		service_data[IDX_STATE] = door_state; // Needs to be changed -> to a GPIO reading from the Door Sensor
 		
-		printk("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
-		printk("HUM: transformed %x, Shifted: %x,%x\n", ble_hum, service_data[IDX_HUMH], service_data[IDX_HUML]);
+		LOG_DBG("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
+		LOG_DBG("HUM: transformed %x, Shifted: %x,%x\n", ble_hum, service_data[IDX_HUMH], service_data[IDX_HUML]);
 
 		// set data via ble and BTHome
+		LOG_HEXDUMP_INF(service_data, sizeof(service_data), "Service Data:");
+		for (int i = 0; i < ARRAY_SIZE(ad); i++) {
+			LOG_HEXDUMP_INF(ad[i].data, ad[i].data_len, "AD Payload:");
+		}
+
 		err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), NULL, 0);
 		if (err) {
-			printk("Failed to update advertising data (err %d)\n", err);
+			LOG_DBG("Failed to update advertising data (err %d)\n", err);
 		}
-		printk("Updated advertising data \n");
+		LOG_DBG("Updated advertising data \n");
 
 
-		k_sleep(K_MSEC(1000*60*15));
-
+		k_sleep(K_MSEC(1000*60*5)); // 5 Minutes Sleep
 	}
 }
