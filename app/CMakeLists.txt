@@ -19,6 +19,7 @@ project(app LANGUAGES C)
 target_sources(app PRIVATE
   src/main.c
   src/pmic.c
+  src/sensors.c
 )
 
 zephyr_include_directories(include)

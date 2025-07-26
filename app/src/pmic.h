@@ -22,6 +22,5 @@ static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_pmic));
 
 
 
-int pmic_test(void);
 
-void read_sensors();
+void get_pmic_sensors(void);

@@ -15,11 +15,11 @@
 #include <zephyr/bluetooth/uuid.h>
 
 #include "pmic.h"
-// #include "sensor.h"
+#include "sensors.h"
 #include <math.h>
 
 // ADC Stuff
-#include <zephyr/drivers/adc.h>
+
 
 #include <hal/nrf_gpio.h>
 
@@ -33,18 +33,7 @@
 const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 
-#if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
-	!DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
-#error "No suitable devicetree overlay specified"
-#endif
 
-#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
-	ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
-
-/* Data of ADC io-channels specified in devicetree. */
-static const struct adc_dt_spec adc_channels[] = {
-	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
-						 DT_SPEC_AND_COMMA)};
 
 // LOG_MODULE_DECLARE(Sensor_Modul);
 LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
@@ -143,8 +132,8 @@ void setup_rtc_wakeup(void)
 #define IDX_BAT 4			/* Index of byte of Bat in service data*/
 #define IDX_TEMPL 6			/* Index of lo byte of temp in service data*/
 #define IDX_TEMPH 7			/* Index of hi byte of temp in service data*/
-#define IDX_HUML 9			/* Index of lo byte of temp in service data*/
-#define IDX_HUMH 10			/* Index of hi byte of temp in service data*/
+#define IDX_HUML 9			/* Index of lo byte of hum in service data*/
+#define IDX_HUMH 10			/* Index of hi byte of hum in service data*/
 #define IDX_STATE 12		/* Index of byte of count in service data*/
 
 #define ADV_PARAM BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_IDENTITY, \
@@ -200,8 +189,7 @@ int main(void)
 
 	int err;
 
-	const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
-
+	sensors_init();
 	// LOG_INF("Starting Lesson 2 - Exercise 1 \n");
 
 	// /* STEP 5 - Enable the Bluetooth LE stack */
@@ -245,43 +233,13 @@ int main(void)
 		return 0;
 	}
 
-	// ADC INIT and Setup
-	uint16_t vbat_raw_lsb;
-	uint32_t count = 0;
-	uint16_t buf;
-	struct adc_sequence sequence = {
-		.buffer = &buf,
-		/* buffer size in bytes, not number of samples */
-		.buffer_size = sizeof(buf),
-	};
 
-	/* Configure channels individually prior to sampling. */
-	for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++)
-	{
-		if (!adc_is_ready_dt(&adc_channels[i]))
-		{
-			LOG_DBG("ADC controller device %s not ready\n", adc_channels[i].dev->name);
-			return 0;
-		}
-
-		err = adc_channel_setup_dt(&adc_channels[i]);
-		if (err < 0)
-		{
-			LOG_DBG("Could not setup channel #%d (%d)\n", i, err);
-			return 0;
-		}
-	}
 
 	struct sensor_value temp, hum;
 	temp.val1 = 110;
 	temp.val2 = 110;
 	hum.val1 = 110;
 	hum.val2 = 110;
-	if (!device_is_ready(sht))
-	{
-		LOG_DBG("Device %s is not ready.\n", sht->name);
-		return 0;
-	}
 
 	LOG_INF("Initialization of all Interfaces DONE!\n");
 	LOG_INF("Entering Main Loop\n");
@@ -306,56 +264,21 @@ int main(void)
 		}
 		NRF_POWER->RESETREAS = 0xFFFFFFFF; // Clear flags
 
-		// Reading SHT4 Sensor - Temp and Humidity
-		if (sensor_sample_fetch(sht))
-		{
-			LOG_DBG("Failed to fetch sample from SHT4X device\n");
-			return 0;
-		}
 
-		sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-		sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+
+		temp = sensor_sht4x_get_temperature();
+		hum = sensor_sht4x_get_humidity();
+
 
 		LOG_DBG("SHT4X: %.2f Temp. [C] ; %0.2f RH [%%]\n",
 				sensor_value_to_double(&temp),
 				sensor_value_to_double(&hum));
 
 		//
-		read_sensors();
-		LOG_DBG("ADC reading[%u]:\n", count++);
-		for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++)
-		{
-			int32_t val_mv;
 
-			LOG_DBG("- %s, channel %d: ",
-					adc_channels[i].dev->name,
-					adc_channels[i].channel_id);
+		get_pmic_sensors();
 
-			(void)adc_sequence_init_dt(&adc_channels[i], &sequence);
-
-			err = adc_read_dt(&adc_channels[i], &sequence);
-			if (err < 0)
-			{
-				LOG_DBG("Could not read (%d)\n", err);
-				continue;
-			}
-
-			/*
-			 * If using differential mode, the 16 bit value
-			 * in the ADC sample buffer should be a signed 2's
-			 * complement value.
-			 */
-			if (adc_channels[i].channel_cfg.differential)
-			{
-				val_mv = (int32_t)((int16_t)buf);
-			}
-			else
-			{
-				val_mv = (int32_t)buf;
-			}
-			vbat_raw_lsb = (uint16_t)val_mv / 4095 * 3.3 * 4 / 3;
-			LOG_DBG("Battery Voltage %d\n", vbat_raw_lsb);
-		}
+		get_adc_data();
 
 		// converting Measurements to BTHome protocol
 		int16_t ble_temp = (floor(sensor_value_to_double(&temp) * 100));
