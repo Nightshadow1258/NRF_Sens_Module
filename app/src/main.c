@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/drivers/gpio.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
@@ -19,9 +18,6 @@
 #include <math.h>
 
 // ADC Stuff
-
-
-#include <hal/nrf_gpio.h>
 
 #include <zephyr/pm/pm.h>
 #include <zephyr/pm/device.h>
@@ -35,7 +31,6 @@ const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 
 
 
-// LOG_MODULE_DECLARE(Sensor_Modul);
 LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
 
 /* 1000 msec = 1 sec */
@@ -50,62 +45,6 @@ LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
  */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
-// Magnetic Door Sensor
-#define DOOR_NODE DT_ALIAS(door0)
-#define DEBOUNCE_TIMEOUT_MS 50 // 50 ms debounce timeout
-
-uint64_t last_time = 0;
-static const struct gpio_dt_spec door = GPIO_DT_SPEC_GET(DOOR_NODE, gpios);
-
-static struct gpio_callback door_cb_data;
-static struct k_work_delayable debounce_work;
-
-void debounce_handler(struct k_work *work)
-{
-	int val = gpio_pin_get_dt(&door);
-	LOG_INF("Debounced door state: %s\n", val ? "OPEN" : "CLOSED");
-}
-
-void door_callback(const struct device *port, struct gpio_callback *cb, uint32_t pins)
-{
-	k_work_reschedule(&debounce_work, K_MSEC(30)); // 30 ms debounce window
-}
-
-void door_sensor_init(void)
-{
-	if (!device_is_ready(door.port))
-	{
-		LOG_ERR("Door GPIO device not ready");
-		return;
-	}
-
-	if (gpio_pin_configure_dt(&door, GPIO_INPUT | GPIO_PULL_UP))
-	{
-		LOG_ERR("Failed to configure door GPIO pin");
-		return;
-	}
-
-	// Enable interrupt before adding callback
-	if (gpio_pin_interrupt_configure_dt(&door, GPIO_INT_EDGE_BOTH))
-	{
-		LOG_ERR("Failed to configure door GPIO interrupt");
-		return;
-	}
-
-	gpio_init_callback(&door_cb_data, door_callback, BIT(door.pin));
-
-	if (gpio_add_callback(door.port, &door_cb_data))
-	{
-		LOG_ERR("Failed to add door callback");
-		return;
-	}
-
-	// Debounce work item setup
-	k_work_init_delayable(&debounce_work, debounce_handler);
-
-	// Wakeup source for power management
-	pm_device_wakeup_enable(door.port, true);
-}
 
 // RTC
 void setup_rtc_wakeup(void)
@@ -213,11 +152,7 @@ int main(void)
 
 	// BLE INIT and Setup for BTHome
 
-	// door sensor init
-	door_sensor_init();
-	// read door state
-	int16_t door_state = gpio_pin_get_dt(&door); // 0 for closed, 1 for open
-
+	int door_state = sensor_get_door_state();
 	// wake up timer
 	// K_TIMER_DEFINE(wakeup_timer, wakeup_handler, NULL);
 	// void wakeup_handler(struct k_timer * timer_id)
@@ -275,9 +210,7 @@ int main(void)
 				sensor_value_to_double(&hum));
 
 		//
-
 		get_pmic_sensors();
-
 		get_adc_data();
 
 		// converting Measurements to BTHome protocol

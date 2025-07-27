@@ -1,3 +1,5 @@
+#pragma once
+
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/npm1300_charger.h>

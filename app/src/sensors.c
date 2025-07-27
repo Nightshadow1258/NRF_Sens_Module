@@ -1,55 +1,19 @@
 #include "sensors.h"
+#include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(sensors, LOG_LEVEL_DBG);
+LOG_MODULE_DECLARE(Sensor_Modul);
 
-// *******************
-// SHT4x Section
-// *******************
-#define SHT_NODE DT_INST(0, sensirion_sht4x)
-static const struct device *dev_sht4x = DEVICE_DT_GET(DT_INST(0, sensirion_sht4x));
-
-static int sensor_sht4x_init(void);
-
-
-// *******************
-// ADC Section
-// *******************
-#include <zephyr/drivers/adc.h>
-
-#if !DT_NODE_EXISTS(DT_PATH(zephyr_user)) || \
-    !DT_NODE_HAS_PROP(DT_PATH(zephyr_user), io_channels)
-#error "No suitable devicetree overlay specified"
-#endif
-
-#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
-    ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
-
-/* Data of ADC io-channels specified in devicetree. */
-static const struct adc_dt_spec adc_channels[] = {
-    DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
-                         DT_SPEC_AND_COMMA)};
-
-uint16_t buf;
-
-struct adc_sequence sequence = {
-    .buffer = &buf,
-    /* buffer size in bytes, not number of samples */
-    .buffer_size = sizeof(buf),
-};
-
-static int sensor_adc_init(void);
 
 // *******************
 // generic functions
 // *******************
-
 int sensors_init(void)
 {
     int err = 0;
 
     err |= sensor_sht4x_init(); // Temperature / humidity
     err |= sensor_adc_init();   // Battery level
-                                // err |= sensor_init_gpio();      // Door sensor or interrupt line
+    err |= sensor_door_init();      // Door sensor or interrupt line
     LOG_INF("Sensor init complete: SHT4x OK | ADC: OK | GPIO: OK");
     return err;
 }
@@ -100,8 +64,21 @@ struct sensor_value sensor_sht4x_get_humidity(void)
 
 
 // *******************
-// SHT4x Section
+// ADC Section
 // *******************
+uint16_t buf;
+
+static struct adc_dt_spec adc_channels[] = {
+    DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
+                         DT_SPEC_AND_COMMA)};
+
+
+struct adc_sequence sequence = {
+    .buffer = &buf,
+    /* buffer size in bytes, not number of samples */
+    .buffer_size = sizeof(buf),
+};
+
 static int sensor_adc_init(void)
 {
     int err;
@@ -171,54 +148,63 @@ double get_adc_data(void)
     return vbat_raw_lsb;
 }
 
-// static int sensor_init_gpio(void) {
-// 	// Initialize GPIO for door sensor
-// 	if (!device_is_ready(door.port))
-// 	{
-// 		LOG_ERR("Door GPIO device not ready");
-// 		return;
-// 	}
+// *******************
+// Door Sensor Section
+// *******************
+struct gpio_dt_spec door = GPIO_DT_SPEC_GET(DOOR_NODE, gpios);
 
-// 	if (gpio_pin_configure_dt(&door, GPIO_INPUT | GPIO_PULL_UP))
-// 	{
-// 		LOG_ERR("Failed to configure door GPIO pin");
-// 		return;
-// 	}
 
-// 	// Enable interrupt before adding callback
-// 	if (gpio_pin_interrupt_configure_dt(&door, GPIO_INT_EDGE_BOTH))
-// 	{
-// 		LOG_ERR("Failed to configure door GPIO interrupt");
-// 		return;
-// 	}
+static void debounce_handler(struct k_work *work)
+{
+	int val = gpio_pin_get_dt(&door);
+	LOG_INF("Debounced door state: %s\n", val ? "OPEN" : "CLOSED");
+}
 
-// 	gpio_init_callback(&door_cb_data, door_callback, BIT(door.pin));
+static void door_callback(const struct device *port, struct gpio_callback *cb, uint32_t pins)
+{
+	k_work_reschedule(&debounce_work, K_MSEC(30)); // 30 ms debounce window
+}
 
-// 	if (gpio_add_callback(door.port, &door_cb_data))
-// 	{
-// 		LOG_ERR("Failed to add door callback");
-// 		return;
-// 	}
+static int sensor_door_init(void) {
+	// Initialize GPIO for door sensor
+	if (!device_is_ready(door.port))
+	{
+		LOG_ERR("Door GPIO device not ready");
+		return -ENODEV;
+	}
 
-// 	// Debounce work item setup
-// 	k_work_init_delayable(&debounce_work, debounce_handler);
+	if (gpio_pin_configure_dt(&door, GPIO_INPUT | GPIO_PULL_UP))
+	{
+		LOG_ERR("Failed to configure door GPIO pin");
+		return -ENODEV;
+	}
 
-// 	// Wakeup source for power management
-// 	pm_device_wakeup_enable(door.port, true);
-// }
+	// Enable interrupt before adding callback
+	if (gpio_pin_interrupt_configure_dt(&door, GPIO_INT_EDGE_BOTH))
+	{
+		LOG_ERR("Failed to configure door GPIO interrupt");
+		return -ENODEV;
+	}
 
-// static void debounce_handler(struct k_work *work)
-// {
-// 	int val = gpio_pin_get_dt(&door);
-// 	LOG_INF("Debounced door state: %s\n", val ? "OPEN" : "CLOSED");
-// }
+	gpio_init_callback(&door_cb_data, door_callback, BIT(door.pin));
 
-// static void door_callback(const struct device *port, struct gpio_callback *cb, uint32_t pins)
-// {
-// 	k_work_reschedule(&debounce_work, K_MSEC(30)); // 30 ms debounce window
-// }
+	if (gpio_add_callback(door.port, &door_cb_data))
+	{
+		LOG_ERR("Failed to add door callback");
+		return -ENODEV;
+	}
 
-// static void door_sensor_init(void)
-// {
+	// Debounce work item setup
+	k_work_init_delayable(&debounce_work, debounce_handler);
 
-// }
+	// Wakeup source for power management
+	pm_device_wakeup_enable(door.port, true);
+    return 0;
+}
+
+int sensor_get_door_state(void)
+{
+    int val = gpio_pin_get_dt(&door);
+    LOG_DBG("Door state read: %s", val ? "OPEN" : "CLOSED");
+    return val; // 0 for closed, 1 for open
+}

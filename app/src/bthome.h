@@ -1,4 +1,4 @@
-
+#pragma once
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/uuid.h>
