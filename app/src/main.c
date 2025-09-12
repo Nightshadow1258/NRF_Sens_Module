@@ -254,10 +254,10 @@ int main(void)
 			nrf_gpio_cfg_sense_input(door.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 		}
 
-		k_sleep(K_MSEC(1000)); // needed to ensure that logging is outputted before entering power down mode
+		k_sleep(K_MSEC(100)); // needed to ensure that logging is outputted before entering power down mode
 
 
-		k_sleep(K_MSEC(10*60*1000));  // 10 minte "sleep" until proper power management is implemented
+		k_sleep(K_MSEC(5*60*1000));  // 10 minte "sleep" until proper power management is implemented
 		// suspend unused devices to save power
 		// pm_device_action_run(uart_dev, PM_DEVICE_ACTION_SUSPEND);
 		// pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_SUSPEND);
