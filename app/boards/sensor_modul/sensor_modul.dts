@@ -278,7 +278,7 @@ arduino_i2c: &i2c1 {
 };
 
 
-// RTC with 32.768 kHz crystal
+// //RTC with 32.768 kHz crystal
 // &clock {
 //     lf_clk {
 //         source = "XTAL";

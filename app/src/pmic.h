@@ -26,3 +26,5 @@ static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_pmic));
 
 
 void get_pmic_sensors(void);
+
+uint16_t get_pmic_battery_percent(void);

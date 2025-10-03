@@ -16,6 +16,7 @@ void get_pmic_sensors(void)
 	struct sensor_value dietemp;
 
 	sensor_sample_fetch(charger);
+	LOG_DBG("PMIC Sensor Sample fetched\n");
 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &volt);
 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &current);
 	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &temp);
@@ -26,10 +27,10 @@ void get_pmic_sensors(void)
 			(enum sensor_attribute)SENSOR_ATTR_NPM1300_CHARGER_VBUS_PRESENT,
 			&vbus_present);
 	
-	npm1300_charger_channel_get(charger, 12, &dietemp);	
+	npm1300_charger_channel_get(charger, SENSOR_CHAN_DIE_TEMP, &dietemp);	
 	LOG_DBG("PMIC Die Temp: %d C\n", dietemp.val1);
 
-
+	LOG_DBG("VBAT : %d C\n", volt.val1);
 	LOG_DBG("V: %d.%03d ", volt.val1, volt.val2 / 1000);
 
 	LOG_DBG("I: %s%d.%04d ", ((current.val1 < 0) || (current.val2 < 0)) ? "-" : "",
@@ -41,4 +42,24 @@ void get_pmic_sensors(void)
 	LOG_DBG("Charger Status: %d, Error: %d, VBUS: %s\n", status.val1, error.val1,
 	       vbus_present.val1 ? "connected" : "disconnected");
 
+}
+
+uint16_t get_pmic_battery_percent(void)
+{
+    struct sensor_value volt;
+    if (sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &volt) != 0) {
+        LOG_ERR("Failed to get voltage");
+        return 0;
+    }
+    float voltage = volt.val1 + volt.val2 / 1000000.0f;
+    uint16_t percentage = 0;
+    if (voltage <= 3.0f) {
+        percentage = 0;
+    } else if (voltage >= 4.2f) {
+        percentage = 100;
+    } else {
+        percentage = (uint16_t)(((voltage - 3.0f) / 1.2f) * 100.0f + 0.5f);
+    }
+    LOG_DBG("Battery Voltage: %.2fV, Estimated Charge: %d%%\n", voltage, percentage);
+    return percentage;
 }

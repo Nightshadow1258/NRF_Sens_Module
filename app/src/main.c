@@ -26,6 +26,10 @@
 #include <hal/nrf_ppi.h>
 #include <hal/nrf_power.h>
 
+// RTC and Wakeup
+#include <zephyr/drivers/counter.h>
+
+
 const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 
@@ -34,7 +38,7 @@ const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
 
 /* 1000 msec = 1 sec */
-#define SLEEP_TIME_MS 1000
+#define SLEEP_TIME_M 1000*60*5  // 10 minutes
 
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
@@ -47,14 +51,26 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 
 // RTC
-void setup_rtc_wakeup(void)
-{
-	NRF_RTC1->PRESCALER = 0;		// 32.768 kHz
-	NRF_RTC1->CC[0] = 32768 * 1000; // Wake after ~10 seconds
-	NRF_RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Msk;
-	NRF_RTC1->INTENSET = RTC_INTENSET_COMPARE0_Msk;
-	NRF_RTC1->TASKS_START = 1;
-}
+
+// const struct device *rtc = DEVICE_DT_GET(DT_NODELABEL(rtc1));
+
+// counter_start(rtc);
+// counter_set_channel_alarm(rtc, 0, &(struct counter_alarm_cfg){
+//     .ticks = counter_us_to_ticks(rtc, 60000000), // 60s
+//     .callback = rtc_handler,
+//     .user_data = NULL,
+//     .flags = 0
+// });
+
+
+// void setup_rtc_wakeup(void)
+// {
+// 	NRF_RTC1->PRESCALER = 0;		// 32.768 kHz
+// 	NRF_RTC1->CC[0] = 32768 * 1000; // Wake after ~10 seconds
+// 	NRF_RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Msk;
+// 	NRF_RTC1->INTENSET = RTC_INTENSET_COMPARE0_Msk;
+// 	NRF_RTC1->TASKS_START = 1;
+// }
 
 // void setup_rtc_wakeup_ppi(void) {
 //     NRF_PPI->CH[0].EEP = (uint32_t)&NRF_RTC1->EVENTS_COMPARE[0];
@@ -91,7 +107,7 @@ static uint8_t service_data[SERVICE_DATA_LEN] = {
 	0xbf, /* 50.55%  low byte*/
 	0x13, /* 50.55%  high byte*/
 	0x09, /* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
-	0x00, /* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
+	0x2D, /* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
 };
 
 static struct bt_data ad[] = {
@@ -124,7 +140,7 @@ int main(void)
 	pm_device_action_run(uart_dev, PM_DEVICE_ACTION_RESUME);
 	pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_RESUME);
 
-	setup_rtc_wakeup(); // Configure RTC compare event
+	//setup_rtc_wakeup(); // Configure RTC compare event
 
 	int err;
 
@@ -199,8 +215,6 @@ int main(void)
 		}
 		NRF_POWER->RESETREAS = 0xFFFFFFFF; // Clear flags
 
-
-
 		temp = sensor_sht4x_get_temperature();
 		hum = sensor_sht4x_get_humidity();
 
@@ -212,7 +226,7 @@ int main(void)
 		//
 		get_pmic_sensors();
 		get_adc_data();
-
+		uint16_t bat_percentage = get_pmic_battery_percent();
 		// converting Measurements to BTHome protocol
 		int16_t ble_temp = (floor(sensor_value_to_double(&temp) * 100));
 		uint16_t ble_hum = (floor(sensor_value_to_double(&hum) * 100));
@@ -223,7 +237,7 @@ int main(void)
 		service_data[IDX_TEMPL] = ble_temp & 0xff;
 		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
 		service_data[IDX_HUML] = ble_hum & 0xff;
-		service_data[IDX_BAT] = 80;			  // Needs to be changed -> ADC Measurement of Voltage from battery needed here
+		service_data[IDX_BAT] = bat_percentage;			  // Needs to be changed -> ADC Measurement of Voltage from battery needed here
 		service_data[IDX_STATE] = door_state; // read the door state and update the service data
 
 		LOG_DBG("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
@@ -242,6 +256,8 @@ int main(void)
 			LOG_DBG("Failed to update advertising data (err %d)\n", err);
 		}
 		LOG_DBG("Updated advertising data \n");
+		k_sleep(K_MSEC(1000));
+		
 
 		if (door_state == 0)
 		{
@@ -255,12 +271,12 @@ int main(void)
 		}
 
 		k_sleep(K_MSEC(100)); // needed to ensure that logging is outputted before entering power down mode
-
-
-		k_sleep(K_MSEC(5*60*1000));  // 10 minte "sleep" until proper power management is implemented
-		// suspend unused devices to save power
 		// pm_device_action_run(uart_dev, PM_DEVICE_ACTION_SUSPEND);
 		// pm_device_action_run(i2c_dev, PM_DEVICE_ACTION_SUSPEND);
+
+		k_sleep(K_MSEC(SLEEP_TIME_M)); 
+		// suspend unused devices to save power
+
 
 		// NRF_POWER->SYSTEMOFF = 1; // Enter System Off Mode via direct register access
 		//  pm_state_force(0, &(struct pm_state_info){
@@ -268,20 +284,9 @@ int main(void)
 		//  					  .substate_id = 0,
 		//  				  }); // Enter Soft Off Mode via PM API - recommended way
 
-		// NRF_RTC1->EVENTS_COMPARE[0] = 0;
+		//NRF_RTC1->EVENTS_COMPARE[0] = 0;
 		// LOG_INF("Entering idle sleep...");
 		// __WFI(); // Wait For Interrupt
 	}
 }
 
-// #include <zephyr/drivers/counter.h>
-
-// const struct device *rtc = DEVICE_DT_GET(DT_NODELABEL(rtc1));
-
-// counter_start(rtc);
-// counter_set_channel_alarm(rtc, 0, &(struct counter_alarm_cfg){
-//     .ticks = counter_us_to_ticks(rtc, 60000000), // 60s
-//     .callback = rtc_handler,
-//     .user_data = NULL,
-//     .flags = 0
-// });
