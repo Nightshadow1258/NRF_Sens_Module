@@ -20,6 +20,7 @@ target_sources(app PRIVATE
   src/main.c
   src/pmic.c
   src/sensors.c
+  src/error_flags.c
 )
 
 zephyr_include_directories(include)

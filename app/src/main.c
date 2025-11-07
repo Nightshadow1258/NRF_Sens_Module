@@ -29,6 +29,7 @@
 // RTC and Wakeup
 #include <zephyr/drivers/counter.h>
 
+#include "error_flags.h"
 
 const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 const struct device *i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
@@ -48,6 +49,7 @@ LOG_MODULE_REGISTER(Sensor_Modul, LOG_LEVEL_DBG);
  * See the sample documentation for information on how to fix this.
  */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+
 
 
 // RTC
@@ -82,14 +84,16 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
-#define SERVICE_DATA_LEN 13 // 13
-#define SERVICE_UUID 0xfcd2 /* BTHome service UUID */
-#define IDX_BAT 4			/* Index of byte of Bat in service data*/
-#define IDX_TEMPL 6			/* Index of lo byte of temp in service data*/
-#define IDX_TEMPH 7			/* Index of hi byte of temp in service data*/
-#define IDX_HUML 9			/* Index of lo byte of hum in service data*/
-#define IDX_HUMH 10			/* Index of hi byte of hum in service data*/
-#define IDX_STATE 12		/* Index of byte of count in service data*/
+#define SERVICE_DATA_LEN 17 	// 13
+#define SERVICE_UUID 0xfcd2 	/* BTHome service UUID */
+#define IDX_BAT 4				/* Index of byte of Bat in service data*/
+#define IDX_TEMPL 6				/* Index of lo byte of temp in service data*/
+#define IDX_TEMPH 7				/* Index of hi byte of temp in service data*/
+#define IDX_HUML 9				/* Index of lo byte of hum in service data*/
+#define IDX_HUMH 10				/* Index of hi byte of hum in service data*/
+#define IDX_ERROR 14			/* Index of byte of count in service data*/
+#define IDX_WINDOW_STATE 16		/* Index of byte of count in service data*/
+
 
 #define ADV_PARAM BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_IDENTITY, \
 								  BT_GAP_ADV_SLOW_INT_MIN,    \
@@ -106,8 +110,10 @@ static uint8_t service_data[SERVICE_DATA_LEN] = {
 	0x03, /* Humidity */
 	0xbf, /* 50.55%  low byte*/
 	0x13, /* 50.55%  high byte*/
-	0x09, /* 8bit count used to communicate a state ON/OFF or OPEN/CLOSE*/
+	0x09, /* 8bit count used to communicate error flags*/
+	0x00,
 	0x2D, /* Default State is 0 -> FALSE and OFF/CLOSED and 1 -> TRUE and ON/OPEN*/
+	0x00,
 };
 
 static struct bt_data ad[] = {
@@ -133,6 +139,9 @@ static void bt_ready(int err)
 		return;
 	}
 }
+
+
+
 
 int main(void)
 {
@@ -165,6 +174,7 @@ int main(void)
 
 	// LOG_INF("Advertising successfully started\n");
 	LOG_INF("Starting Initialization of all Interfaces\n");
+	LOG_INF("Version_Tag: 2024-11-07_v0.5.0\n");
 
 	// BLE INIT and Setup for BTHome
 
@@ -198,22 +208,23 @@ int main(void)
 	while (true)
 	{
 
-		uint32_t reason = NRF_POWER->RESETREAS;
-		LOG_INF("Reset reason: 0x%08x", reason);
+		// uint32_t reason = NRF_POWER->RESETREAS;
+		// LOG_INF("Reset reason: 0x%08x", reason);
 
-		if (reason & POWER_RESETREAS_RESETPIN_Msk)
-		{
-			LOG_INF("Reset from pin");
-		}
-		if (reason & POWER_RESETREAS_LPCOMP_Msk)
-		{
-			LOG_INF("Woke up from LPCOMP");
-		}
-		if (reason & POWER_RESETREAS_OFF_Msk)
-		{
-			LOG_INF("Wakeup caused by GPIO");
-		}
-		NRF_POWER->RESETREAS = 0xFFFFFFFF; // Clear flags
+		// if (reason & POWER_RESETREAS_RESETPIN_Msk)
+		// {
+		// 	LOG_INF("Reset from pin");
+		// }
+		// if (reason & POWER_RESETREAS_LPCOMP_Msk)
+		// {
+		// 	LOG_INF("Woke up from LPCOMP");
+		// }
+		// if (reason & POWER_RESETREAS_OFF_Msk)
+		// {
+		// 	LOG_INF("Wakeup caused by GPIO");
+		// }
+		// NRF_POWER->RESETREAS = 0xFFFFFFFF; // Clear flags
+		get_pmic_sensors();
 
 		temp = sensor_sht4x_get_temperature();
 		hum = sensor_sht4x_get_humidity();
@@ -224,7 +235,6 @@ int main(void)
 				sensor_value_to_double(&hum));
 
 		//
-		get_pmic_sensors();
 		get_adc_data();
 		uint16_t bat_percentage = get_pmic_battery_percent();
 		// converting Measurements to BTHome protocol
@@ -238,8 +248,8 @@ int main(void)
 		service_data[IDX_HUMH] = (ble_hum & 0xff00) >> 8;
 		service_data[IDX_HUML] = ble_hum & 0xff;
 		service_data[IDX_BAT] = bat_percentage;			  // Needs to be changed -> ADC Measurement of Voltage from battery needed here
-		service_data[IDX_STATE] = door_state; // read the door state and update the service data
-
+		service_data[IDX_WINDOW_STATE] = door_state; // read the door state and update the service data
+		service_data[IDX_ERROR] = error_flags_get(); // read error flags and update service data
 		LOG_DBG("TEMP: transformed %x, Shifted: %x,%x\n", ble_temp, service_data[IDX_TEMPH], service_data[IDX_TEMPL]);
 		LOG_DBG("HUM: transformed %x, Shifted: %x,%x\n", ble_hum, service_data[IDX_HUMH], service_data[IDX_HUML]);
 
@@ -256,7 +266,7 @@ int main(void)
 			LOG_DBG("Failed to update advertising data (err %d)\n", err);
 		}
 		LOG_DBG("Updated advertising data \n");
-		k_sleep(K_MSEC(1000));
+		k_sleep(K_MSEC(100));
 		
 
 		if (door_state == 0)
